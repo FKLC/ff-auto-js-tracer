@@ -1,0 +1,29 @@
+{
+  "name": "auto-js-trace",
+  "version": "1.0.0",
+  "scripts": {
+    "esbuild": "node build.mjs",
+    "lint": "npx eslint",
+    "start": "node --experimental-sqlite dist/index.js"
+  },
+  "private": true,
+  "keywords": [],
+  "author": "Fatih Victor Kilic",
+  "license": "MIT",
+  "description": "Automated Firefox Profiler that is designed to parse JS Tracer output",
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "esbuild": "0.24.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.15.0"
+  },
+  "dependencies": {
+    "puppeteer": "^23.8.0",
+    "puppeteer-core": "^23.8.0"
+  },
+  "overrides": {
+    "clone-deep": "^4.0.1"
+  }
+}
