@@ -11,7 +11,7 @@ Before installing this repo, make sure you have the following prerequisites:
 
 1. Clone this repository
 1. Run `npm install`
-1. Rename [`example.user.config.js`](example.user.config.js) to `user.config.json` and fill in the necessary fields.
+1. Rename [`example.user.config.js`](example.user.config.js) to `user.config.js` and fill in the necessary fields.
     - `firefoxPath`: Path to the Firefox binary you want to use.
     - `jobs`: Websites you want to profile. See [types > ProfileJob](src/types.d.ts) and example config for its structure.
 
