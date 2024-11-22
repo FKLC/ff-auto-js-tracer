@@ -18,6 +18,6 @@ Before installing this repo, make sure you have the following two:
 ## Usage
 
 1. Run `npm run esbuild`
-1. Run `npm start -- [optional reports directory] [optional database path]`
+1. Run `npm start`
 
 This should open Firefox and start profiling the websites you specified in `user.config.json`. Do note that writes to the database are done in every 10 profiles, so you won't see any data in the database until 10 profiles have been completed. You can configure this by modifying [Pipeline Class > CHUNK_SIZE](src/pipeline.ts)
