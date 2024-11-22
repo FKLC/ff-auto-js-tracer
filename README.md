@@ -21,3 +21,12 @@ Before installing this repo, make sure you have the following two:
 1. Run `npm start`
 
 This should open Firefox and start profiling the websites you specified in `user.config.json`. Do note that writes to the database are done in every 10 profiles, so you won't see any data in the database until 10 profiles have been completed. You can configure this by modifying [Pipeline Class > CHUNK_SIZE](src/pipeline.ts)
+
+## Terminology
+
+DOM events: refers to the events recorded by the JS Tracer feature.
+
+## Limitations
+
+- Bot detection: While I haven't ran into any issues, as this is an automated Firefox instance, you may run into bot detection issues on some websites.
+- Stacks with no JS: Sometimes the profiler records DOM events with no JS stack. What I mean by this is, usually a DOM event is triggered by a JS function. However, sometimes the profiler records a DOM event with no JS stack. This is a limitation of the profiler and not this tool. It sometimes happens when the JS code is running in a script tag in a document at the top-level scope. These calls are not reflected to the analysis as we can't match them to a specific window.
