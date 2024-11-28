@@ -19,3 +19,9 @@ type ProfileJob = {
 type ScriptURL = string | null;
 type FirstPartyURL = string | null;
 type ThirdPartyURL = string | null;
+type ScriptToAPIKeySource = [
+  FirstPartyURL,
+  ThirdPartyURL,
+  ScriptURL,
+  ScriptURL
+];

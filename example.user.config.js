@@ -24,4 +24,9 @@ export default {
     "YourFirefoxBuildDir/mozilla-unified/obj-ff/dist/Nightly.app/Contents/MacOS/firefox",
   reportDir: "reports",
   dbPath: "analysis.db",
+  launchOptions: {
+    extraPrefsFirefox: {
+      "layout.css.prefers-color-scheme.content-override": 0, // Dark mode
+    }
+  }
 };

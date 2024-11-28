@@ -1,6 +1,6 @@
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
-import puppeteer, { Browser } from "puppeteer-core";
+import puppeteer, { Browser, PuppeteerLaunchOptions } from "puppeteer-core";
 import {
   getItemsInFolder,
   waitUntilNewFileInFolder,
@@ -16,9 +16,11 @@ export default class Profiler {
   static async Create({
     firefoxPath,
     reportDir,
+    launchOptions,
   }: {
     firefoxPath: string;
     reportDir: string;
+    launchOptions: PuppeteerLaunchOptions;
   }) {
     const browser = await puppeteer.launch({
       browser: "firefox",
@@ -28,6 +30,7 @@ export default class Profiler {
         MOZ_UPLOAD_DIR: reportDir,
       },
       defaultViewport: null,
+      ...launchOptions,
     });
     return new Profiler({ browser, reportDir });
   }
@@ -42,7 +45,7 @@ export default class Profiler {
     await this.browser.close();
   }
 
-  async #start() {
+  #start() {
     const pid = this.browser.process()?.pid;
     if (!pid) {
       throw new Error("Failed to get browser pid");
@@ -79,7 +82,7 @@ export default class Profiler {
     const page = await context.newPage();
 
     if (job.startProfiler === "beforeload") {
-      await this.#start();
+      this.#start();
     }
 
     await page.goto(job.url).catch(async (err) => {
@@ -94,7 +97,7 @@ export default class Profiler {
     });
 
     if (job.startProfiler === "afterload") {
-      await this.#start();
+      this.#start();
     }
 
     if ("waitFor" in job) {

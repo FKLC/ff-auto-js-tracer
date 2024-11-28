@@ -9,10 +9,11 @@ async function main() {
     {
       firefoxPath: config.firefoxPath,
       reportDir: config.reportDir,
+      launchOptions: config.launchOptions,
     }
   );
   await pipeline.run();
-  await pipeline.close();
+  pipeline.close();
 }
 
-main();
+void main();

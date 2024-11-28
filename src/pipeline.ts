@@ -5,7 +5,7 @@ import { URL } from "node:url";
 import Analyser from "./analyser.js";
 import Profiler from "./profiler.js";
 import { GeckoProfile } from "./profilerTypes.js";
-import type { ProfileJob } from "./types";
+import type { ProfileJob, ScriptToAPIKeySource } from "./types";
 
 export default class Pipeline {
   jobChunks: ProfileJob[][];
@@ -77,17 +77,22 @@ export default class Pipeline {
     return new Pipeline(jobs, dbPath, profilerConfig);
   }
 
-  async close() {
+  close() {
     this.db.close();
   }
 
-  async #getURLProperty(
-    url: string,
+  #getURLProperty(
+    url: string | null,
     property:
       | Exclude<keyof URL, "toString" | "toJSON" | "searchParams">
       | "queryStripped"
-  ): Promise<string> {
+  ): string | null {
     // If the URL is not a valid URL, return it as is
+
+    if (!url) {
+      return url;
+    }
+
     try {
       new URL(url);
     } catch {
@@ -149,7 +154,7 @@ export default class Pipeline {
 
     for (const [scriptSource, counter] of this.analyser.scriptToAPI.entries()) {
       const [firstPartyURL, thirdPartyURL, scriptURL, validScriptURL] =
-        JSON.parse(scriptSource);
+        JSON.parse(scriptSource) as ScriptToAPIKeySource;
       const [
         firstPartyOrigin,
         thirdPartyOrigin,
@@ -204,14 +209,14 @@ export default class Pipeline {
         const profile = JSON.parse(
           await fs.readFile(profilePath, "utf8")
         ) as GeckoProfile;
-        const threadsPerProcess = await Analyser.filterThreadsByPage(
+        const threadsPerProcess = Analyser.filterThreadsByPage(
           profile,
           (page) => page.url.startsWith("http")
         );
-        await this.analyser.setCategories(profile.meta.categories);
-        await this.analyser.setThreadsPerProcess(threadsPerProcess);
+        this.analyser.setCategories(profile.meta.categories);
+        this.analyser.setThreadsPerProcess(threadsPerProcess);
 
-        await this.analyser.analyse();
+        this.analyser.analyse();
       }
 
       // Write the analysis to Sqlite database

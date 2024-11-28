@@ -8,7 +8,7 @@ import type {
   Page,
 } from "./profilerTypes";
 import { URL } from "node:url";
-import type { ScriptURL, FirstPartyURL, ThirdPartyURL } from "./types";
+import type { ScriptURL, ScriptToAPIKeySource } from "./types";
 
 export default class Analyser {
   threadsPerProcess: Map<GeckoSubprocessProfile, GeckoThread[]>;
@@ -24,7 +24,7 @@ export default class Analyser {
     this.categories = [];
   }
 
-  static async filterThreadsByPage(
+  static filterThreadsByPage(
     profile: GeckoProfile,
     filter: (page: Page) => boolean
   ) {
@@ -50,31 +50,31 @@ export default class Analyser {
     return threadsPerProcess;
   }
 
-  async setThreadsPerProcess(
+  setThreadsPerProcess(
     threadsPerProcess: Map<GeckoSubprocessProfile, GeckoThread[]>
   ) {
     this.threadsPerProcess = threadsPerProcess;
   }
 
-  async setCategories(categories: CategoryList) {
+  setCategories(categories: CategoryList) {
     this.categories = categories;
   }
 
-  static async #isStackRoot(
+  static #isStackRoot(
     stack: GeckoStackTable["data"][0],
     schema: GeckoStackTable["schema"]
   ) {
     return stack[schema.prefix] === null;
   }
 
-  async #isParentAValidScriptStack(
+  #isParentAValidScriptStack(
     thread: GeckoThread,
     stack: GeckoStackTable["data"][0]
-  ) {
+  ): boolean {
     // Root stack doesn't have any category or innerWindowID
     // So it is no use to check stacks that are roots or if their
     // parent is the root
-    if (await Analyser.#isStackRoot(stack, thread.stackTable.schema)) {
+    if (Analyser.#isStackRoot(stack, thread.stackTable.schema)) {
       // Stack is the root
       return false;
     }
@@ -82,17 +82,19 @@ export default class Analyser {
     const parentStack =
       thread.stackTable.data[stack[thread.stackTable.schema.prefix]!];
 
-    if (await Analyser.#isStackRoot(parentStack, thread.stackTable.schema)) {
+    if (Analyser.#isStackRoot(parentStack, thread.stackTable.schema)) {
       // Parent is the root
       return false;
     }
 
     const parentFrame =
-      thread.frameTable.data[parentStack[thread.stackTable.schema.frame]!];
+      thread.frameTable.data[parentStack[thread.stackTable.schema.frame]];
     const parentFrameCategory = parentFrame[thread.frameTable.schema.category];
 
     if (this.categories[parentFrameCategory!].name !== "JavaScript") {
-      return false;
+      // Parent frame is not JavaScript
+      // Traverse up the stack to find a valid script
+      return this.#isParentAValidScriptStack(thread, parentStack);
     }
 
     const parentFrameString =
@@ -105,13 +107,9 @@ export default class Analyser {
     return true;
   }
 
-  async #shouldIgnoreSample(
-    thread: GeckoThread,
-    sample: GeckoSamples["data"][0]
-  ) {
+  #shouldIgnoreSample(thread: GeckoThread, sample: GeckoSamples["data"][0]) {
     const stack = thread.stackTable.data[sample[thread.samples.schema.stack]!];
-    const frame =
-      thread.frameTable.data[stack[thread.stackTable.schema.frame]!];
+    const frame = thread.frameTable.data[stack[thread.stackTable.schema.frame]];
     const frameString =
       thread.stringTable[frame[thread.frameTable.schema.location]];
 
@@ -121,10 +119,10 @@ export default class Analyser {
     }
 
     // Ignore frames that don't have a script
-    return !(await this.#isParentAValidScriptStack(thread, stack));
+    return !this.#isParentAValidScriptStack(thread, stack);
   }
 
-  async #shouldIgnoreScriptURL(scriptURL: ScriptURL) {
+  #shouldIgnoreScriptURL(scriptURL: ScriptURL) {
     if (!scriptURL) {
       return false;
     }
@@ -135,14 +133,14 @@ export default class Analyser {
     );
   }
 
-  static async scriptURLFromLabel(label: string) {
+  static scriptURLFromLabel(label: string) {
     // Script URLs are in the format of "something (https://url.com/path:line:col)"
     // or "something (https://url.com/ line 7327 > injectedScript line 2 > eval line 6206 > eval line 1 > eval line 1 > eval:1:165)"
     // This regex will return "https://url.com/path" for the first case and "https://url.com/" for the second case.
     return label.match(/\((.+?)(?: .+)?(?::\d+:\d+)\)/)?.[1] ?? null;
   }
 
-  static async embedderChain(pages: Record<number, Page>, page: Page) {
+  static embedderChain(pages: Record<number, Page>, page: Page) {
     if (!page) {
       return [];
     }
@@ -157,7 +155,7 @@ export default class Analyser {
     return chain;
   }
 
-  async #recordAPIUsage(scriptSoure: ScriptToAPIKeySource, api: string) {
+  #recordAPIUsage(scriptSoure: ScriptToAPIKeySource, api: string) {
     const scriptHash = JSON.stringify(scriptSoure);
     let scriptDoms = this.scriptToAPI.get(scriptHash);
     if (!scriptDoms) {
@@ -169,120 +167,116 @@ export default class Analyser {
     scriptDoms.set(api, count + 1);
   }
 
-  async #findScriptURL(
+  #findStackWithValidURL(
     stack: GeckoStackTable["data"][0],
-    thread: GeckoThread,
-    traverseUntilValidURL: boolean
-  ): Promise<string | null> {
-    if (await Analyser.#isStackRoot(stack, thread.stackTable.schema)) {
+    thread: GeckoThread
+  ): [GeckoStackTable["data"][0], string] | null {
+    if (!stack) {
       return null;
+    }
+
+    const stackURL = this.#getURLFromStack(stack, thread);
+    if (stackURL) {
+      return [stack, stackURL];
     }
 
     const parentStack =
       thread.stackTable.data[stack[thread.stackTable.schema.prefix]!];
 
-    if (await Analyser.#isStackRoot(parentStack, thread.stackTable.schema)) {
+    return this.#findStackWithValidURL(parentStack, thread);
+  }
+
+  #getURLFromStack(
+    stack: GeckoStackTable["data"][0],
+    thread: GeckoThread
+  ): string | null {
+    if (Analyser.#isStackRoot(stack, thread.stackTable.schema)) {
       return null;
     }
 
-    const parentFrame =
-      thread.frameTable.data[parentStack[thread.stackTable.schema.frame]!];
-    const parentFrameCategory = parentFrame[thread.frameTable.schema.category];
+    const frame = thread.frameTable.data[stack[thread.stackTable.schema.frame]];
+    const frameCategory = frame[thread.frameTable.schema.category];
 
-    if (this.categories[parentFrameCategory!].name !== "JavaScript") {
-      return this.#findScriptURL(parentStack, thread, traverseUntilValidURL);
+    if (this.categories[frameCategory!].name !== "JavaScript") {
+      return null;
     }
 
     const parentFrameString =
-      thread.stringTable[parentFrame[thread.frameTable.schema.location]];
+      thread.stringTable[frame[thread.frameTable.schema.location]];
 
-    const url = await Analyser.scriptURLFromLabel(parentFrameString);
-    if (!traverseUntilValidURL) {
-      return url;
+    const url = Analyser.scriptURLFromLabel(parentFrameString);
+    if (!url) {
+      return null;
     }
 
     try {
-      new URL(url!);
+      new URL(url);
       return url;
     } catch {
-      return this.#findScriptURL(parentStack, thread, traverseUntilValidURL);
+      return null;
     }
   }
 
-  async #analyseThread(process: GeckoSubprocessProfile, thread: GeckoThread) {
+  #analyseThread(process: GeckoSubprocessProfile, thread: GeckoThread) {
     const pagesByInnerWindowId = (process.pages ?? []).reduce((acc, page) => {
       acc[page.innerWindowID] = page;
       return acc;
     }, {} as Record<number, Page>);
 
     for (const sample of thread.samples.data) {
-      if (await this.#shouldIgnoreSample(thread, sample)) {
+      if (this.#shouldIgnoreSample(thread, sample)) {
         continue;
       }
 
       const stack =
         thread.stackTable.data[sample[thread.samples.schema.stack]!];
       const frame =
-        thread.frameTable.data[stack[thread.stackTable.schema.frame]!];
+        thread.frameTable.data[stack[thread.stackTable.schema.frame]];
       const frameString =
         thread.stringTable[frame[thread.frameTable.schema.location]];
       const parentStack =
         thread.stackTable.data[stack[thread.stackTable.schema.prefix]!];
-      const parentFrame =
-        thread.frameTable.data[parentStack[thread.stackTable.schema.frame]!];
 
-      const scriptURL = await this.#findScriptURL(stack, thread, false);
-      const validScriptURL = await this.#findScriptURL(stack, thread, true);
+      const scriptURL = this.#getURLFromStack(stack, thread);
+      const stackWithValidURL = this.#findStackWithValidURL(stack, thread);
+      const validScriptURL = stackWithValidURL ? stackWithValidURL[1] : null;
 
       if (
-        (await this.#shouldIgnoreScriptURL(scriptURL)) ||
-        (await this.#shouldIgnoreScriptURL(validScriptURL))
+        this.#shouldIgnoreScriptURL(scriptURL) ||
+        this.#shouldIgnoreScriptURL(validScriptURL)
       ) {
         continue;
       }
 
+      const pageLookupStack = stackWithValidURL
+        ? stackWithValidURL[0]
+        : parentStack;
+      const pageLookupFrame =
+        thread.frameTable.data[pageLookupStack[thread.stackTable.schema.frame]];
       const page =
-        pagesByInnerWindowId[parentFrame[thread.frameTable.schema.innerWindowID]!];
-      const embedderChain = await Analyser.embedderChain(
-        pagesByInnerWindowId,
-        page
-      );
+        pagesByInnerWindowId[
+          pageLookupFrame[thread.frameTable.schema.innerWindowID]!
+        ];
+      const embedderChain = Analyser.embedderChain(pagesByInnerWindowId, page);
       const firstParty = embedderChain.pop() ?? null;
       const thirdParty = embedderChain[0] ?? null;
 
-      await this.#recordAPIUsage(
+      this.#recordAPIUsage(
         [firstParty, thirdParty, scriptURL, validScriptURL],
         frameString
       );
     }
   }
 
-  async analyse() {
+  analyse() {
     for (const [process, threads] of this.threadsPerProcess.entries()) {
       for (const thread of threads) {
-        await this.#analyseThread(process, thread);
+        this.#analyseThread(process, thread);
       }
     }
-  }
-
-  async toJSON() {
-    function replacer(_: string, value: unknown) {
-      if (value instanceof Map) {
-        return Object.fromEntries(value);
-      } else {
-        return value;
-      }
-    }
-    return JSON.stringify(this.scriptToAPI, replacer);
   }
 }
 
-type ScriptToAPIKeySource = [
-  FirstPartyURL,
-  ThirdPartyURL,
-  ScriptURL,
-  ScriptURL
-];
 type ScriptToAPISourceHashKey = string;
 type ScriptToAPICallCounter = Map<string, number>;
 type ScriptToAPI = Map<ScriptToAPISourceHashKey, ScriptToAPICallCounter>;
