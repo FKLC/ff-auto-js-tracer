@@ -5,10 +5,11 @@ import { URL } from "node:url";
 import Analyser from "./analyser.js";
 import Profiler from "./profiler.js";
 import { GeckoProfile } from "./profilerTypes.js";
-import type { ProfileJob, ScriptToAPIKeySource } from "./types";
+import type { PipelineConfig, ProfileJob, ScriptToAPIKeySource } from "./types";
 
 export default class Pipeline {
   jobChunks: ProfileJob[][];
+  clearReportDir: boolean;
   analyser?: Analyser;
   profiler?: Profiler;
   profilerConfig: Parameters<typeof Profiler.Create>[0];
@@ -17,16 +18,18 @@ export default class Pipeline {
   static TABLE_NAME = "analysis";
 
   constructor(
-    jobs: ProfileJob[],
-    dbPath: string,
+    pipelineConfig: PipelineConfig,
     profilerConfig: Parameters<typeof Profiler.Create>[0]
   ) {
     this.jobChunks = [];
-    for (let i = 0; i < jobs.length; i += Pipeline.CHUNK_SIZE) {
-      this.jobChunks.push(jobs.slice(i, i + Pipeline.CHUNK_SIZE));
+    for (let i = 0; i < pipelineConfig.jobs.length; i += Pipeline.CHUNK_SIZE) {
+      this.jobChunks.push(
+        pipelineConfig.jobs.slice(i, i + Pipeline.CHUNK_SIZE)
+      );
     }
     this.profilerConfig = profilerConfig;
-    this.db = new DatabaseSync(dbPath);
+    this.db = new DatabaseSync(pipelineConfig.dbPath);
+    this.clearReportDir = pipelineConfig.clearReportDir;
 
     this.#createTables();
   }
@@ -67,14 +70,13 @@ export default class Pipeline {
   }
 
   static async Create(
-    jobs: ProfileJob[],
-    dbPath: string,
+    pipelineConfig: PipelineConfig,
     profilerConfig: Parameters<typeof Profiler.Create>[0]
   ) {
     // Create the report directory if it doesn't exist
     await fs.mkdir(profilerConfig.reportDir, { recursive: true });
 
-    return new Pipeline(jobs, dbPath, profilerConfig);
+    return new Pipeline(pipelineConfig, profilerConfig);
   }
 
   close() {
@@ -221,6 +223,13 @@ export default class Pipeline {
 
       // Write the analysis to Sqlite database
       await this.#writeResults();
+
+      // Clear the report directory if required
+      if (this.clearReportDir) {
+        for (const profilePath of profilePaths) {
+          await fs.rm(profilePath);
+        }
+      }
     }
   }
 }

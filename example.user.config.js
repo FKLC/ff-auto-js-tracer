@@ -23,6 +23,7 @@ export default {
   firefoxPath:
     "YourFirefoxBuildDir/mozilla-unified/obj-ff/dist/Nightly.app/Contents/MacOS/firefox",
   reportDir: "reports",
+  clearReportDir: false,
   dbPath: "analysis.db",
   launchOptions: {
     extraPrefsFirefox: {

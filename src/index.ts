@@ -4,8 +4,11 @@ import type { ProfileJob } from "./types.js";
 
 async function main() {
   const pipeline = await Pipeline.Create(
-    config.jobs as ProfileJob[],
-    config.dbPath,
+    {
+      jobs: config.jobs as ProfileJob[],
+      dbPath: config.dbPath,
+      clearReportDir: config.clearReportDir,
+    },
     {
       firefoxPath: config.firefoxPath,
       reportDir: config.reportDir,

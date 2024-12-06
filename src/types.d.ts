@@ -25,3 +25,9 @@ type ScriptToAPIKeySource = [
   ScriptURL,
   ScriptURL
 ];
+
+type PipelineConfig = {
+  jobs: ProfileJob[];
+  dbPath: string;
+  clearReportDir: boolean;
+};
