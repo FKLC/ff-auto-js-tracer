@@ -1,5 +1,6 @@
-import assert from "assert";
-import fs from "fs/promises";
+import assert from "node:assert";
+import buffer from "node:buffer";
+import fs from "node:fs/promises";
 import sqlite, { DatabaseSync } from "node:sqlite";
 import { URL } from "node:url";
 import Analyser from "./analyser.js";
@@ -197,20 +198,38 @@ export default class Pipeline {
     for (const jobs of this.jobChunks) {
       // Create a new profiler (a new browser instance) for each chunk of jobs.
       // We will close the profiler after processing the jobs to save resources.
-      this.profiler = await Profiler.Create(this.profilerConfig);
-      this.profiler.jobs = jobs;
+      //this.profiler = await Profiler.Create(this.profilerConfig);
+      //this.profiler.jobs = jobs;
 
-      const profilePaths = await this.profiler.processJobs();
+      const profilePaths = await fs
+        .readdir(this.profilerConfig.reportDir)
+        .then((r) =>
+          r
+            .filter((i) => i.endsWith(".json"))
+            .map((r) => this.profilerConfig.reportDir + "/" + r)
+        ); // await this.profiler.processJobs();
 
       // Close the profiler to save resources
-      await this.profiler.close();
+      //await this.profiler.close();
 
       // Analyse the profiles
       this.analyser = new Analyser();
       for (const profilePath of profilePaths) {
-        const profile = JSON.parse(
-          await fs.readFile(profilePath, "utf8")
-        ) as GeckoProfile;
+        const stat = await fs.stat(profilePath);
+        if (stat.size > buffer.constants.MAX_STRING_LENGTH) {
+          console.error(
+            `File ${profilePath} is too large to be read by the pipeline.`
+          );
+          continue;
+        }
+        const contents = await fs.readFile(profilePath, "utf8").catch((e) => {
+          console.error(`Error reading file ${profilePath}: ${e}`);
+          return null;
+        });
+        if (!contents) {
+          continue;
+        }
+        const profile = JSON.parse(contents) as GeckoProfile;
         const threadsPerProcess = Analyser.filterThreadsByPage(
           profile,
           (page) => page.url.startsWith("http")
