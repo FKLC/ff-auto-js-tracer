@@ -198,19 +198,13 @@ export default class Pipeline {
     for (const jobs of this.jobChunks) {
       // Create a new profiler (a new browser instance) for each chunk of jobs.
       // We will close the profiler after processing the jobs to save resources.
-      //this.profiler = await Profiler.Create(this.profilerConfig);
-      //this.profiler.jobs = jobs;
+      this.profiler = await Profiler.Create(this.profilerConfig);
+      this.profiler.jobs = jobs;
 
-      const profilePaths = await fs
-        .readdir(this.profilerConfig.reportDir)
-        .then((r) =>
-          r
-            .filter((i) => i.endsWith(".json"))
-            .map((r) => this.profilerConfig.reportDir + "/" + r)
-        ); // await this.profiler.processJobs();
+      const profilePaths = await this.profiler.processJobs();
 
       // Close the profiler to save resources
-      //await this.profiler.close();
+      await this.profiler.close();
 
       // Analyse the profiles
       this.analyser = new Analyser();
