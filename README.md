@@ -7,7 +7,17 @@ This is an automated Firefox profiler. It will visit the pages you specify and r
 Before installing this repo, make sure you have the following prerequisites:
 - Linux or MacOS. Windows is not supported.
 - You need at least Node v22.5.0 as this project depends on `node:sqlite` library.
-- You need a specific Firefox build. Specifically a build that has this [patch stack](https://phabricator.services.mozilla.com/D229659). Make sure to check "Stack" tab to ensure this is indeed the latest patch in the stack. You can also download a build from [here](https://treeherder.mozilla.org/jobs?repo=try&resultStatus=success%2Crunnable&revision=4f2e8611907acc8d4c44c1d1054365441011b5d0&searchStr=build) but it may be outdated.
+- You need a custom Firefox build. You'll need to apply some patches to your custom build from [the Gist here](https://gist.github.com/FKLC/f752fede7217ca05c17611bf70c61ce9).
+    - These two are a MUST:
+        - update-signal-initiated-profiler-features-and-filters.diff
+        - signal-back-to-the-signaller-after-profiler-is-stopped.diff
+    - These are optional, but recommended:
+        - prevent-bot-detection.diff
+    - These are only for research purposes, you can skip them. They do show how you can extend the data collected by the profiler:
+        - log-requested-fonts-and-font-fingerprinting.diff
+        - log-blocked-fonts.diff
+    - These are NOT recommended, avoid it if you can. It will break pages and potentially crash Firefox:
+        - dont-use-super-verbose-and-hacky-and-unstable-js-tracer.diff
 
 1. Clone this repository
 1. Run `npm install`
