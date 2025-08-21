@@ -10,14 +10,20 @@ Before installing this repo, make sure you have the following prerequisites:
 - You need a custom Firefox build. You'll need to apply some patches to your custom build from [the Gist here](https://gist.github.com/FKLC/f752fede7217ca05c17611bf70c61ce9).
     - These two are a MUST:
         - update-signal-initiated-profiler-features-and-filters.diff
+            - When the profiler is initiated from a signal, it will use the hardcoded features and filters. This patch modifies it to use the JSTracer feature.
         - signal-back-to-the-signaller-after-profiler-is-stopped.diff
+            - This patch makes sure that the profiler signals back to the signaller (this tool) after the profiler is stopped. This is important as it tells this tool that the profiling is done and it can proceed to the next step. There's also [Bug 1905929](https://bugzilla.mozilla.org/show_bug.cgi?id=1905929) which is similar, but there's no work being done on it as of now.
     - These are optional, but recommended:
         - prevent-bot-detection.diff
+            - Just sets navigator.webdriver to false. Some websites check this property to detect bots.
     - These are only for research purposes, you can skip them. They do show how you can extend the data collected by the profiler:
         - log-requested-fonts-and-font-fingerprinting.diff
+            - Logs requested fonts by scripts. Also logs font fingerprinting attempts by utilizing Firefox's built-in font fingerprinting detection.
         - log-blocked-fonts.diff
+            - Logs blocked fonts by the user's font blocking settings.
     - These are NOT recommended, avoid it if you can. It will break pages and potentially crash Firefox:
         - dont-use-super-verbose-and-hacky-and-unstable-js-tracer.diff
+            - This patch injects code to every JS function (including getters and setters) and logs every function call's arguments and return values. This is extremely hacky and unstable, and will break maaaany pages.
 
 1. Clone this repository
 1. Run `npm install`
